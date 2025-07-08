@@ -17,7 +17,13 @@ ENTITY Execute IS
 		FUNCT_WIDTH : integer := 6;
 		PC_WIDTH : integer := 10
 	);
-	PORT(	read_data1_i 	: IN 	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+	PORT(	
+			EX_MEM_flush_ctrl_i    : in STD_LOGIC;
+        	EX_MEM_write_ctrl_i    : in STD_LOGIC;
+
+			clk_i, rst_i        : in  STD_LOGIC;
+
+		    read_data1_i 	: IN 	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
 			read_data2_i 	: IN 	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
 
 			sign_extend_i 	: IN 	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
@@ -37,12 +43,18 @@ END Execute;
 
 
 ARCHITECTURE behavior OF Execute IS
-SIGNAL a_input_w, b_input_w 	: STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
-SIGNAL alu_out_mux_w			: STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
-SIGNAL branch_addr_r 			: STD_LOGIC_VECTOR(7 DOWNTO 0);
-SIGNAL alu_ctl_w				: STD_LOGIC_VECTOR(3 DOWNTO 0);
+	SIGNAL a_input_w, b_input_w 	: STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+	SIGNAL alu_out_mux_w			: STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+	SIGNAL branch_addr_r 			: STD_LOGIC_VECTOR(7 DOWNTO 0);
+	SIGNAL alu_ctl_w				: STD_LOGIC_VECTOR(3 DOWNTO 0);
 
-alias shamt is sign_extend_i(10 downto 6);
+	alias shamt is sign_extend_i(10 downto 6);
+
+
+	-- EX/MEM register
+	signal zero_q 			: STD_LOGIC;
+	signal alu_res_q 		: STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+	signal addr_res_q 		: STD_LOGIC_VECTOR( 7 DOWNTO 0 );
 
 BEGIN
 	--------------------------------------------------------------------------------------------------------
@@ -106,6 +118,24 @@ BEGIN
 					(ALUOp_ctrl_i = R_TYPE_ALU_CTRL AND funct_i = SLT_FUNC) ELSE
 					alu_out_mux_w;
   
+  
+    -- EX/MEM register update
+    process (clk_i, rst_i)
+     begin
+        if EX_MEM_flush_ctrl_i = '1' then
+				zero_q 		   <= '0';
+				alu_res_q 	   <= (others => '0');
+				addr_res_q 	   <= (others => '0');
+
+        elsif (RISING_EDGE(clk_i)) then
+            if EX_MEM_write_ctrl_i = '1' then
+				zero_q 		   <= zero_o;	
+				alu_res_q 	   <= alu_res_o;
+				addr_res_q 	   <= addr_res_o; 
+
+            end if;
+        end if;
+    end process;
 
 -- I-type = [op,rs,rt,imm]
 

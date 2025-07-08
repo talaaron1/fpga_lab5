@@ -17,7 +17,12 @@ ENTITY dmemory IS
 		DTCM_ADDR_WIDTH : integer := 8;
 		WORDS_NUM : integer := 256
 	);
-	PORT(	clk_i,rst_i			: IN 	STD_LOGIC;
+	PORT(	
+			MEM_WB_flush_ctrl_i    : in STD_LOGIC;
+        	MEM_WB_write_ctrl_i    : in STD_LOGIC;	
+
+			clk_i,rst_i			: IN 	STD_LOGIC;
+
 			dtcm_addr_i 		: IN 	STD_LOGIC_VECTOR(DTCM_ADDR_WIDTH-1 DOWNTO 0);
 			dtcm_data_wr_i 		: IN 	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
 			MemRead_ctrl_i  	: IN 	STD_LOGIC;
@@ -29,6 +34,11 @@ END dmemory;
 
 ARCHITECTURE behavior OF dmemory IS
 SIGNAL wrclk_w : STD_LOGIC;
+
+	-- MEM/WB register
+	signal dtcm_addr_q 		: STD_LOGIC_VECTOR(DTCM_ADDR_WIDTH-1 DOWNTO 0);
+	signal dtcm_data_rd_q   : STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1  DOWNTO 0);
+
 BEGIN
 	data_memory : altsyncram
 	GENERIC MAP  (
@@ -51,5 +61,23 @@ BEGIN
 	);
 
 	wrclk_w <= NOT clk_i;	-- Load memory address register with write clock
+
+	-- MEM/WB register update
+    process (clk_i, rst_i)
+     begin
+        if MEM_WB_flush_ctrl_i = '1' then
+                dtcm_addr_q <= (others => '0'); 
+                dtcm_data_rd_q <= (others => '0');
+
+        elsif (RISING_EDGE(clk_i)) then
+            if MEM_WB_write_ctrl_i = '1' then
+                dtcm_addr_q <= dtcm_addr_i;
+                dtcm_data_rd_q <= dtcm_data_rd_o;
+            
+            end if;
+        end if;
+    end process;
+
+
 END behavior;
 

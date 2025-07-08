@@ -19,9 +19,10 @@ entity IFETCH is
         INST_CNT_WIDTH   : INTEGER := 16
     );
     port (
-        clk_i, rst_i    : in STD_LOGIC;
         IF_ID_flush_ctrl_i    : in STD_LOGIC;
         IF_ID_write_ctrl_i    : in STD_LOGIC;
+
+        clk_i, rst_i    : in STD_LOGIC;
 
         PCwrite_ctrl_i  : in STD_LOGIC;
         PCSrc_ctrl_i    : in STD_LOGIC_VECTOR(1 downto 0);
@@ -31,11 +32,14 @@ entity IFETCH is
         BTA_i           : in STD_LOGIC_VECTOR(PC_WIDTH-1 downto 0);
         jump_register_i  : in STD_LOGIC_VECTOR(PC_WIDTH-1 downto 0);
 
-        PC_o             : out STD_LOGIC_VECTOR(PC_WIDTH-1 downto 0);
-        inst_cnt_o       : out STD_LOGIC_VECTOR(INST_CNT_WIDTH-1 downto 0);
 
+        -- IF/ID register outputs
         PC_plus4_o       : out STD_LOGIC_VECTOR(PC_WIDTH-1 downto 0);
-        instruction_o    : out STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 downto 0)
+        instruction_o    : out STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 downto 0);
+
+        -- debug outputs
+        PC_o             : out STD_LOGIC_VECTOR(PC_WIDTH-1 downto 0);
+        inst_cnt_o       : out STD_LOGIC_VECTOR(INST_CNT_WIDTH-1 downto 0)
     );
 end IFETCH;
 
@@ -114,12 +118,14 @@ begin
     process (clk_i, rst_i)
      begin
         if IF_ID_flush_ctrl_i = '1' then
-            PC_plus_4_q <= (others => '0'); 
-            instruction_q <= (others => '0');
+                PC_plus_4_q <= (others => '0'); 
+                instruction_q <= (others => '0');
+
         elsif (RISING_EDGE(clk_i)) then
             if IF_ID_write_ctrl_i = '1' then
                 PC_plus_4_q <= PC_plus_4_r;
                 instruction_q <= instruction_r;
+            
             end if;
         end if;
     end process;
