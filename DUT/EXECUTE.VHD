@@ -18,35 +18,65 @@ ENTITY Execute IS
 		PC_WIDTH : integer := 10
 	);
 	PORT(	
-			EX_MEM_flush_ctrl_i    : in STD_LOGIC;
-        	EX_MEM_write_ctrl_i    : in STD_LOGIC;
 
-			clk_i, rst_i        : in  STD_LOGIC;
+			clk_i, rst_i     : in  STD_LOGIC;
 
-		    read_data1_i 	: IN 	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
-			read_data2_i 	: IN 	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+		    read_data1_i 	 : IN 	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+			read_data2_i 	 : IN 	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+			 
+			funct_i 		 : IN 	STD_LOGIC_VECTOR(FUNCT_WIDTH-1 DOWNTO 0);
+			pc_plus4_i 		 : IN 	STD_LOGIC_VECTOR(PC_WIDTH-1 DOWNTO 0);
+ 
+			alu_res_o 		 : OUT	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
 
-			sign_extend_i 	: IN 	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
-			funct_i 		: IN 	STD_LOGIC_VECTOR(FUNCT_WIDTH-1 DOWNTO 0);
 
-			ALUOp_ctrl_i 	: IN 	STD_LOGIC_VECTOR(2 DOWNTO 0);
-			ALUSrcB_ctrl_i 	: IN 	STD_LOGIC;
-			ALUSrcA_ctrl_i 	: IN 	STD_LOGIC;
+			-- forword signals
+			forwardA_o       : IN  STD_LOGIC_VECTOR(1 downto 0);
+        	forwardB_o       : IN  STD_LOGIC_VECTOR(1 downto 0);
+			EX_MEM_to_alu_i  : IN  STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 downto 0);
+			MEM_WB_to_alu_i	 : IN  STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 downto 0);
 
-			pc_plus4_i 		: IN 	STD_LOGIC_VECTOR(PC_WIDTH-1 DOWNTO 0);
+			-- to update the EX/MEM register
+			rs_register_i    : IN STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 downto 0);
+			rt_register_i    : IN STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 downto 0);
+			rd_register_i    : IN STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 downto 0);
+			sign_extend_i 	 : IN STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
 
-			zero_o 			: OUT	STD_LOGIC;
-			alu_res_o 		: OUT	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
-			addr_res_o 		: OUT	STD_LOGIC_VECTOR( 7 DOWNTO 0 )
+			target_write_reg_o : OUT STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+
+			-- EX Controls
+			ALUOp_ctrl_i 	 : IN 	STD_LOGIC_VECTOR(2 DOWNTO 0);
+			ALUSrcB_ctrl_i 	 : IN 	STD_LOGIC;
+			ALUSrcA_ctrl_i 	 : IN 	STD_LOGIC;
+			
+		-- to update the EX/MEM register
+			-- MEM Controls
+			MemRead_ctrl_i 		: IN 	STD_LOGIC;
+			MemWrite_ctrl_i	 	: IN 	STD_LOGIC;
+			MemRead_ctrl_o 		: OUT 	STD_LOGIC;
+			MemWrite_ctrl_o	 	: OUT 	STD_LOGIC;
+
+			-- WB Controls
+			RegDst_ctrl_i		: IN 	STD_LOGIC;
+			MemtoReg_ctrl_i 	: IN 	STD_LOGIC;
+			RegWrite_ctrl_i 	: IN 	STD_LOGIC;
+			LinkPC_ctrl_i		: IN 	STD_LOGIC;
+			MemtoReg_ctrl_o 	: OUT 	STD_LOGIC;
+			RegWrite_ctrl_o 	: OUT 	STD_LOGIC
+
 	);
 END Execute;
 
 
 ARCHITECTURE behavior OF Execute IS
 	SIGNAL a_input_w, b_input_w 	: STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+	SIGNAL read_data1_w, read_data2_w 	: STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+	
 	SIGNAL alu_out_mux_w			: STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
 	SIGNAL branch_addr_r 			: STD_LOGIC_VECTOR(7 DOWNTO 0);
 	SIGNAL alu_ctl_w				: STD_LOGIC_VECTOR(3 DOWNTO 0);
+
+	SIGNAL target_write_reg_w		: STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
 
 	alias shamt is sign_extend_i(10 downto 6);
 
@@ -86,17 +116,32 @@ BEGIN
 	end process;
 
 	-- ALU A input mux
-	a_input_w <= read_data1_i WHEN (ALUSrcA_ctrl_i = '0') ELSE (26 downto 0 => '0') & shamt;
+	read_data1_w <= EX_MEM_to_alu_i WHEN forwardA_o = "10" ELSE 
+				    MEM_WB_to_alu_i WHEN forwardA_o = "01" ELSE 
+				    read_data1_i;
+
+	a_input_w <= read_data1_w WHEN (ALUSrcA_ctrl_i = '0') ELSE (26 downto 0 => '0') & shamt;
 
 	-- ALU B input mux
-	b_input_w <= 	read_data2_i WHEN (ALUSrcB_ctrl_i = '0') ELSE sign_extend_i(DATA_BUS_WIDTH-1 DOWNTO 0);
+	read_data2_w <= EX_MEM_to_alu_i WHEN forwardB_o = "10" ELSE 
+					MEM_WB_to_alu_i WHEN forwardB_o = "01" ELSE 
+					read_data2_i;
+
+	b_input_w <= 	read_data2_w WHEN (ALUSrcB_ctrl_i = '0') ELSE sign_extend_i(DATA_BUS_WIDTH-1 DOWNTO 0);
 	
 	-- Generate Zero Flag
-	zero_o <=	'1' WHEN (alu_out_mux_w(DATA_BUS_WIDTH-1 DOWNTO 0) = X"00000000") ELSE '0';    
+	--zero_o <=	'1' WHEN (alu_out_mux_w(DATA_BUS_WIDTH-1 DOWNTO 0) = X"00000000") ELSE '0';    
 					
 	-- Adder to compute Branch Address
 	branch_addr_r	<= pc_plus4_i(PC_WIDTH-1 DOWNTO 2) + sign_extend_i(7 DOWNTO 0);
-	addr_res_o 		<= branch_addr_r(7 DOWNTO 0);
+	--addr_res_o 		<= branch_addr_r(7 DOWNTO 0);
+
+
+	-- Target Write Register Mux
+	--RegDst_ctrl_o    	<=  '0' WHEN rtype_w = '1' OR opcode_i = MUL_OPC ELSE '1';
+	target_write_reg_w <=  rd_register_i when RegDst_ctrl_i = '0' ELSE rt_register_i;
+	
+	
 
 	process (alu_ctl_w, a_input_w, b_input_w)
 	 begin
@@ -122,18 +167,16 @@ BEGIN
     -- EX/MEM register update
     process (clk_i, rst_i)
      begin
-        if EX_MEM_flush_ctrl_i = '1' then
-				zero_q 		   <= '0';
-				alu_res_q 	   <= (others => '0');
-				addr_res_q 	   <= (others => '0');
-
-        elsif (RISING_EDGE(clk_i)) then
-            if EX_MEM_write_ctrl_i = '1' then
-				zero_q 		   <= zero_o;	
+        if (RISING_EDGE(clk_i)) then
 				alu_res_q 	   <= alu_res_o;
-				addr_res_q 	   <= addr_res_o; 
+				target_write_reg_o <= target_write_reg_w;
 
-            end if;
+				-- MEM Control 
+				MemRead_ctrl_o 		<= MemRead_ctrl_i;
+				MemWrite_ctrl_o	 	<= MemWrite_ctrl_i;
+				-- WB Controls
+				MemtoReg_ctrl_o 	<= MemtoReg_ctrl_i;
+				RegWrite_ctrl_o 	<= RegWrite_ctrl_i;
         end if;
     end process;
 

@@ -27,7 +27,33 @@ ENTITY dmemory IS
 			dtcm_data_wr_i 		: IN 	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
 			MemRead_ctrl_i  	: IN 	STD_LOGIC;
 			MemWrite_ctrl_i 	: IN 	STD_LOGIC;
-			dtcm_data_rd_o 		: OUT 	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0)
+			dtcm_data_rd_o 		: OUT 	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+
+
+			target_write_reg_i : IN STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+			target_write_reg_o : OUT STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+
+			-- to update the MEM/WB register
+			-- WB Controls
+			RegDst_ctrl_i		: IN 	STD_LOGIC;
+			MemtoReg_ctrl_i 	: IN 	STD_LOGIC;
+			RegWrite_ctrl_i 	: IN 	STD_LOGIC;
+			LinkPC_ctrl_i		: IN 	STD_LOGIC;
+			RegDst_ctrl_o 		: OUT 	STD_LOGIC;
+			MemtoReg_ctrl_o 	: OUT 	STD_LOGIC;
+			RegWrite_ctrl_o 	: OUT 	STD_LOGIC;
+			LinkPC_ctrl_o 		: OUT 	STD_LOGIC;
+
+
+		    --fowording 
+			--from EX/MEM to EXECUTE
+			EX_MEM_RegWrite_ctrl_o 	: OUT 	STD_LOGIC;
+			--from MEM/WB to EXECUTE
+			MEM_WB_RegWrite_ctrl_o 	: OUT 	STD_LOGIC
+
+
+			--dtcm_data_rd_o 		: OUT 	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0)
+
 	);
 END dmemory;
 
@@ -62,6 +88,10 @@ BEGIN
 
 	wrclk_w <= NOT clk_i;	-- Load memory address register with write clock
 
+	-- forwarding
+	EX_MEM_RegWrite_ctrl_o <= RegWrite_ctrl_i;
+	MEM_WB_RegWrite_ctrl_o <= RegWrite_ctrl_o;
+
 	-- MEM/WB register update
     process (clk_i, rst_i)
      begin
@@ -69,10 +99,24 @@ BEGIN
                 dtcm_addr_q <= (others => '0'); 
                 dtcm_data_rd_q <= (others => '0');
 
+				-- WB Controls
+				RegDst_ctrl_o 		<= '0';
+				MemtoReg_ctrl_o 	<= '0';
+				RegWrite_ctrl_o 	<= '0';
+				LinkPC_ctrl_o 		<= '0';
+
         elsif (RISING_EDGE(clk_i)) then
             if MEM_WB_write_ctrl_i = '1' then
                 dtcm_addr_q <= dtcm_addr_i;
                 dtcm_data_rd_q <= dtcm_data_rd_o;
+
+				-- WB Controls
+				RegDst_ctrl_o 		<= RegDst_ctrl_i;
+				MemtoReg_ctrl_o 	<= MemtoReg_ctrl_i;
+				RegWrite_ctrl_o 	<= RegWrite_ctrl_i;
+				LinkPC_ctrl_o 		<= LinkPC_ctrl_i;
+
+				target_write_reg_o <= target_write_reg_i;
             
             end if;
         end if;

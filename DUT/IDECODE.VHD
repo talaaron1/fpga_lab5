@@ -42,21 +42,21 @@ entity IDECODE is
 
 		funct_o        	: out STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 downto 0);
 		sign_extend_o    : out STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 downto 0);
-        
-        -- WB Controls
-		RegDst_ctrl_o 		: OUT 	STD_LOGIC;
-		MemtoReg_ctrl_o 	: OUT 	STD_LOGIC;
-		RegWrite_ctrl_o 	: OUT 	STD_LOGIC;
-		LinkPC_ctrl_o 		: OUT 	STD_LOGIC;
+
+		-- EX Controls
+		ALUSrcB_ctrl_o 		: OUT 	STD_LOGIC;
+		ALUSrcA_ctrl_o 		: OUT 	STD_LOGIC;
+		ALUOp_ctrl_o	 	: OUT 	STD_LOGIC_VECTOR(3 DOWNTO 0);
 
 		-- MEM Controls
 		MemRead_ctrl_o 		: OUT 	STD_LOGIC;
 		MemWrite_ctrl_o	 	: OUT 	STD_LOGIC;
 
-		-- EX Controls
-		ALUSrcB_ctrl_o 		: OUT 	STD_LOGIC;
-		ALUSrcA_ctrl_o 		: OUT 	STD_LOGIC;
-		ALUOp_ctrl_o	 	: OUT 	STD_LOGIC_VECTOR(3 DOWNTO 0)
+		-- WB Controls
+		RegDst_ctrl_o 		: OUT 	STD_LOGIC;
+		MemtoReg_ctrl_o 	: OUT 	STD_LOGIC;
+		RegWrite_ctrl_o 	: OUT 	STD_LOGIC;
+		LinkPC_ctrl_o 		: OUT 	STD_LOGIC
     );
 end IDECODE;
 
@@ -165,7 +165,7 @@ begin
 
 	rs_register_o <= rs_register_q;
 	rt_register_o <= rt_register_q;
-	rt_register_o <= rt_register_q;
+	rd_register_o <= rd_register_q;
 
 	funct_o <= funct_q;
 	sign_extend_o <= sign_extend_q;
@@ -193,49 +193,42 @@ begin
 		if ID_EX_flush_ctrl_i = '1' then
 			rs_data_q 		<= (others => '0');
 			rt_data_q 		<= (others => '0');
-			
-			sign_extend_q 	<= (others => '0');
-			
-			rs_data_q 		<= (others => '0');
-			rt_data_q 		<= (others => '0');
-			
+
 			rs_register_q   <= (others => '0');
 			rt_register_q   <= (others => '0');
 			rt_register_q 	<= (others => '0');
 			
-			funct_q 		<= (others => '0');
 			sign_extend_q 	<= (others => '0');
+			
+			funct_q 		<= (others => '0');
 
 			-- WB Controls
-			RegDst_ctrl_q 	<= (others => '0');
-			MemtoReg_ctrl_q <= (others => '0');	
-			RegWrite_ctrl_q <= (others => '0');
-			LinkPC_ctrl_q 	<= (others => '0');
+			RegDst_ctrl_q 	<= '0';
+			MemtoReg_ctrl_q <= '0';
+			RegWrite_ctrl_q <= '0';
+			LinkPC_ctrl_q 	<= '0';
 			-- MEM Controls
-			MemRead_ctrl_q 	<= (others => '0');
-			MemWrite_ctrl_q	<= (others => '0');
+			MemRead_ctrl_q 	<= '0';
+			MemWrite_ctrl_q	<= '0';
 
 			-- EX Controls
-			ALUSrcB_ctrl_q 	<= (others => '0');
-			ALUSrcA_ctrl_q 	<= (others => '0');
+			ALUSrcB_ctrl_q 	<= '0';
+			ALUSrcA_ctrl_q 	<= '0';
 			ALUOp_ctrl_q	<= (others => '0');
 
         elsif rising_edge(clk_i) then
 			if ID_EX_write_ctrl_i = '1' then
 				rs_data_q <= rs_data_w;
 				rt_data_q <= rs_data_w;
-				sign_extend_q <= sign_extend_w;
-
-				rs_data_q <= rs_data_w;
-				rt_data_q <= rs_data_w;
 
 				rs_register_q <= rs_register;
 				rt_register_q <= rt_register;
-				rt_register_q <= rt_register;
+				rd_register_q <= rd_register;
 
-				funct_q <= funct;
 				sign_extend_q <= sign_extend_w;
 
+				funct_q <= funct;
+				
 				-- WB Controls
 				RegDst_ctrl_q 	<= RegDst_ctrl_w;
 				MemtoReg_ctrl_q <= MemtoReg_ctrl_w;
