@@ -1,0 +1,164 @@
+---------------------------------------------------------------------------------------------
+-- Copyright 2025 Hananya Ribo 
+-- Advanced CPU architecture and Hardware Accelerators Lab 361-1-4693 BGU
+---------------------------------------------------------------------------------------------
+-- Ifetch module (provides the PC and instruction 
+--memory for the MIPS computer)
+--test2
+LIBRARY IEEE;
+USE IEEE.STD_LOGIC_1164.ALL;
+USE IEEE.STD_LOGIC_ARITH.ALL;
+USE IEEE.STD_LOGIC_UNSIGNED.ALL;
+USE work.const_package.all;
+LIBRARY altera_mf;
+USE altera_mf.altera_mf_components.all;
+
+ENTITY Ifetch IS
+    GENERIC (
+        WORD_GRANULARITY : boolean := False;
+        DATA_BUS_WIDTH   : integer := 32;
+        PC_WIDTH         : integer := 10;
+        NEXT_PC_WIDTH    : integer := 8;  -- NEXT_PC_WIDTH = PC_WIDTH-2
+        ITCM_ADDR_WIDTH  : integer := 8;
+        WORDS_NUM        : integer := 256;
+        INST_CNT_WIDTH   : integer := 16
+    );
+    PORT (    
+        clk_i, rst_i     : IN  STD_LOGIC;
+        add_result_i     : IN  STD_LOGIC_VECTOR(7 DOWNTO 0);
+		alu_result_i	 : IN  STD_LOGIC_VECTOR(PC_WIDTH-1 DOWNTO 0);
+        Branch_ctrl_i    : IN  STD_LOGIC;
+		PCSrc_ctrl_i 	 : IN 	STD_LOGIC_VECTOR(1 DOWNTO 0);
+        zero_i           : IN  STD_LOGIC;
+        pc_o             : OUT STD_LOGIC_VECTOR(PC_WIDTH-1 DOWNTO 0);
+        pc_plus4_o       : OUT STD_LOGIC_VECTOR(PC_WIDTH-1 DOWNTO 0);
+        instruction_o    : OUT STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+        inst_cnt_o       : OUT STD_LOGIC_VECTOR(INST_CNT_WIDTH-1 DOWNTO 0)    
+    );
+END Ifetch;
+
+ARCHITECTURE behavior OF Ifetch IS
+
+    SIGNAL pc_q         : STD_LOGIC_VECTOR(PC_WIDTH-1 DOWNTO 0);
+    SIGNAL pc_plus4_r   : STD_LOGIC_VECTOR(PC_WIDTH-1 DOWNTO 0);
+    SIGNAL itcm_addr_w  : STD_LOGIC_VECTOR(ITCM_ADDR_WIDTH-1 DOWNTO 0);
+    SIGNAL next_pc_w    : STD_LOGIC_VECTOR(NEXT_PC_WIDTH-1 DOWNTO 0);
+    SIGNAL rst_flag_q   : STD_LOGIC;
+    SIGNAL inst_cnt_q   : STD_LOGIC_VECTOR(INST_CNT_WIDTH-1 DOWNTO 0);
+    SIGNAL pc_prev_q    : STD_LOGIC_VECTOR(PC_WIDTH-1 DOWNTO 0);
+
+	SIGNAL instruction_r    : STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+	alias address is instruction_r(25 DOWNTO 0);
+	alias func is instruction_r(5 DOWNTO 0);
+
+	SIGNAL jump_add_r    : STD_LOGIC_VECTOR(NEXT_PC_WIDTH-1 DOWNTO 0);
+	SIGNAL branch_con_r    : STD_LOGIC;
+
+BEGIN
+
+	--ROM for Instruction Memory
+    inst_memory: altsyncram
+        GENERIC MAP (
+            operation_mode         => "ROM",
+            width_a                => DATA_BUS_WIDTH,
+            widthad_a              => ITCM_ADDR_WIDTH,
+            numwords_a             => WORDS_NUM,
+            lpm_hint               => "ENABLE_RUNTIME_MOD = YES,INSTANCE_NAME = ITCM",
+            lpm_type               => "altsyncram",
+            outdata_reg_a          => "UNREGISTERED",
+            init_file              => "F:\labs\GPU_labs\lab5\code2\ITCM.hex",
+            intended_device_family => "Cyclone"
+        )
+        PORT MAP (
+            clock0    => clk_i,
+            address_a => itcm_addr_w, 
+            q_a       => instruction_r 
+        );
+
+    -- send address to inst. memory address register
+    G1: 
+    IF (WORD_GRANULARITY = True) GENERATE      -- i.e. each WORD has unike address
+        itcm_addr_w <= next_pc_w ;
+    ELSIF (WORD_GRANULARITY = False) GENERATE  -- i.e. each BYTE has unike address
+        itcm_addr_w <= next_pc_w & "00";
+    END GENERATE;
+
+	---------------------------------------------------------------------------------------
+    --                      PC Source
+    ---------------------------------------------------------------------------------------
+
+	-- Instructions always start on word address - not byte
+    pc_q(1 DOWNTO 0) <= "00";
+
+    -- Adder to increment PC by 4
+    pc_plus4_r(PC_WIDTH-1 DOWNTO 2)  <= (pc_q(PC_WIDTH-1 DOWNTO 2) + 1);
+    pc_plus4_r(1 DOWNTO 0) <= "00";
+
+	-- Calc jump address	(for Jump / Jal)
+	jump_add_r <= address(PC_WIDTH-3 downto 0) +1;
+
+	-- Calc branch condition	(for Beq / Bne)
+	branch_con_r <= '1' WHEN (Branch_ctrl_i = '1' AND zero_i = '1') OR (Branch_ctrl_i = '0' AND zero_i = '0') ELSE '0';
+
+    -- Mux to select PC
+    next_pc_w <= 	(others => '0') 					WHEN rst_flag_q = '1' ELSE	-- RESET
+					jump_add_r   						WHEN PCSrc_ctrl_i = "01" ELSE	-- for Jump / Jal
+					add_result_i						WHEN PCSrc_ctrl_i = "10" AND branch_con_r = '1' ELSE	-- for Beq / Bne
+					alu_result_i(PC_WIDTH-1 DOWNTO 2)	WHEN PCSrc_ctrl_i = "11" AND func = JR_FUNC ELSE	-- for Jr
+					pc_plus4_r(PC_WIDTH-1 DOWNTO 2);	-- ELSE PC + 4
+    -------------------------------------------------------------------------------------
+
+    -- sample reset flag evry rising edge of the clock
+    PROCESS (clk_i)
+    BEGIN
+        IF (clk_i'EVENT AND clk_i = '1') THEN
+            rst_flag_q <= rst_i;
+        END IF;
+    END PROCESS;
+
+    -------------------------------------------------------------------------------------
+    -- if (rst) pc = 0 elseif (rising_edge) pc = pc_next
+    PROCESS (clk_i, rst_i)
+    BEGIN
+        IF rst_i = '1' THEN
+            pc_q(PC_WIDTH-1 DOWNTO 2) <= (2 => '1', OTHERS => '0');
+        ELSIF (clk_i'EVENT AND clk_i = '1') THEN
+            pc_q(PC_WIDTH-1 DOWNTO 2) <= next_pc_w;
+        END IF;
+    END PROCESS;
+
+    ---------------------------------------------------------------------------------------
+    --                      IPC - instruction counter register
+    ---------------------------------------------------------------------------------------
+    -- if (rst) pc_prev = 0 elseif (falling_edge) pc_prev = pc
+    PROCESS (clk_i, rst_i)
+    BEGIN
+        IF rst_i = '1' THEN
+            pc_prev_q <= (others => '0');
+        ELSIF falling_edge(clk_i) THEN
+            pc_prev_q <= pc_q;
+        END IF;
+    END PROCESS;
+
+    ---------------------------------------------------------------------------------------
+    -- if (rst) same_instract_count = 0 elseif (rising_edge and "same instract") same_instract_count++
+    PROCESS (clk_i, rst_i)
+    BEGIN
+        IF rst_i = '1' THEN
+            inst_cnt_q <= (others => '0');
+        ELSIF rising_edge(clk_i) THEN
+            IF pc_prev_q = pc_q THEN
+                inst_cnt_q <= inst_cnt_q + '1';
+            END IF;
+        END IF;
+    END PROCESS;
+
+    ---------------------------------------------------------------------------------------
+
+    -- copy output signals - allows read inside module
+    pc_o        <= pc_q;
+    pc_plus4_o  <= pc_plus4_r;
+    inst_cnt_o  <= inst_cnt_q;
+	instruction_o <= instruction_r;
+
+END behavior;
