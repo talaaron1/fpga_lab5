@@ -15,24 +15,23 @@ ENTITY control IS
 		opcode_i 			: IN 	STD_LOGIC_VECTOR(5 DOWNTO 0);
 		func_i 				: IN 	STD_LOGIC_VECTOR(5 DOWNTO 0);
 
-		IF_ID_flush_ctrl_o 	: OUT STD_LOGIC;
 		PCSrc_o 			: OUT 	STD_LOGIC_VECTOR(1 DOWNTO 0);
 		Branch_ctrl_o 		: OUT 	STD_LOGIC;
 
-		-- WB Controls
-		RegDst_ctrl_o 		: OUT 	STD_LOGIC;
-		MemtoReg_ctrl_o 	: OUT 	STD_LOGIC;
-		RegWrite_ctrl_o 	: OUT 	STD_LOGIC;
-		LinkPC_ctrl_o 		: OUT 	STD_LOGIC;
+		-- EX Controls
+		ALUSrcB_ctrl_o 		: OUT 	STD_LOGIC;
+		ALUSrcA_ctrl_o 		: OUT 	STD_LOGIC;
+		ALUOp_ctrl_o	 	: OUT 	STD_LOGIC_VECTOR(2 DOWNTO 0);
 
 		-- MEM Controls
 		MemRead_ctrl_o 		: OUT 	STD_LOGIC;
 		MemWrite_ctrl_o	 	: OUT 	STD_LOGIC;
 
-		-- EX Controls
-		ALUSrcB_ctrl_o 		: OUT 	STD_LOGIC;
-		ALUSrcA_ctrl_o 		: OUT 	STD_LOGIC;
-		ALUOp_ctrl_o	 	: OUT 	STD_LOGIC_VECTOR(2 DOWNTO 0)
+		-- WB Controls
+		RegDst_ctrl_o 		: OUT 	STD_LOGIC;
+		MemtoReg_ctrl_o 	: OUT 	STD_LOGIC;
+		RegWrite_ctrl_o 	: OUT 	STD_LOGIC;
+		LinkPC_ctrl_o 		: OUT 	STD_LOGIC
 	);
 END control;
 

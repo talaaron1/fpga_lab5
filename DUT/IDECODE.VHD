@@ -26,7 +26,7 @@ entity IDECODE is
         write_data_i        : in  STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 downto 0);
 
         LinkPC_ctrl_i       : in  STD_LOGIC;
-        RegWrite_ctrl_i     : in  STD_LOGIC;
+        
 
         zero_o              : out STD_LOGIC;
         BTA_o               : out STD_LOGIC_VECTOR(PC_WIDTH-1 downto 0);
@@ -45,18 +45,26 @@ entity IDECODE is
 
 		-- EX Controls
 		ALUSrcB_ctrl_o 		: OUT 	STD_LOGIC;
+		ALUSrcB_ctrl_i 		: IN 	STD_LOGIC;
 		ALUSrcA_ctrl_o 		: OUT 	STD_LOGIC;
+		ALUSrcA_ctrl_i 		: IN 	STD_LOGIC;
 		ALUOp_ctrl_o	 	: OUT 	STD_LOGIC_VECTOR(3 DOWNTO 0);
+		ALUOp_ctrl_i	 	: IN 	STD_LOGIC_VECTOR(3 DOWNTO 0);
 
 		-- MEM Controls
 		MemRead_ctrl_o 		: OUT 	STD_LOGIC;
+		MemRead_ctrl_i 		: IN 	STD_LOGIC;
 		MemWrite_ctrl_o	 	: OUT 	STD_LOGIC;
+		MemWrite_ctrl_i	 	: IN 	STD_LOGIC;
 
 		-- WB Controls
 		RegDst_ctrl_o 		: OUT 	STD_LOGIC;
+		RegDst_ctrl_i 		: IN 	STD_LOGIC;
 		MemtoReg_ctrl_o 	: OUT 	STD_LOGIC;
-		RegWrite_ctrl_o 	: OUT 	STD_LOGIC;
-		LinkPC_ctrl_o 		: OUT 	STD_LOGIC
+		MemtoReg_ctrl_i 	: IN 	STD_LOGIC
+		RegWrite_ctrl_i     : in  STD_LOGIC;
+		RegWrite_ctrl_o     : out  STD_LOGIC
+		
     );
 end IDECODE;
 
@@ -92,7 +100,22 @@ architecture behavior of IDECODE is
 	signal funct_q        	: STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 downto 0);
     signal sign_extend_q    : STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 downto 0);
 
-    -- WB Controls
+    
+    -- EX Controls
+    signal ALUSrcB_ctrl_q 		: STD_LOGIC;
+    signal ALUSrcA_ctrl_q 		: STD_LOGIC;
+    signal ALUOp_ctrl_q	 	    : STD_LOGIC_VECTOR(3 DOWNTO 0);
+    signal ALUSrcB_ctrl_w 		: STD_LOGIC;
+    signal ALUSrcA_ctrl_w 		: STD_LOGIC;
+    signal ALUOp_ctrl_w	 	    : STD_LOGIC_VECTOR(3 DOWNTO 0);
+
+    -- MEM Controls
+    signal MemRead_ctrl_q 		: STD_LOGIC;
+    signal MemWrite_ctrl_q	 	: STD_LOGIC;
+    signal MemRead_ctrl_w 		: STD_LOGIC;
+    signal MemWrite_ctrl_w	 	: STD_LOGIC;
+
+	-- WB Controls
     signal RegDst_ctrl_q 		: STD_LOGIC;
     signal MemtoReg_ctrl_q 	    : STD_LOGIC;
     signal RegWrite_ctrl_q 	    : STD_LOGIC;
@@ -102,22 +125,9 @@ architecture behavior of IDECODE is
     signal RegWrite_ctrl_w 	    : STD_LOGIC;
     signal LinkPC_ctrl_w 		: STD_LOGIC;
 
-    -- MEM Controls
-    signal MemRead_ctrl_q 		: STD_LOGIC;
-    signal MemWrite_ctrl_q	 	: STD_LOGIC;
-    signal MemRead_ctrl_w 		: STD_LOGIC;
-    signal MemWrite_ctrl_w	 	: STD_LOGIC;
-
-    -- EX Controls
-    signal ALUSrcB_ctrl_q 		: STD_LOGIC;
-    signal ALUSrcA_ctrl_q 		: STD_LOGIC;
-    signal ALUOp_ctrl_q	 	    : STD_LOGIC_VECTOR(3 DOWNTO 0);
-    signal ALUSrcB_ctrl_w 		: STD_LOGIC;
-    signal ALUSrcA_ctrl_w 		: STD_LOGIC;
-    signal ALUOp_ctrl_w	 	    : STD_LOGIC_VECTOR(3 DOWNTO 0);
-
 begin
 
+	
 ---------------------- Register File Logic ----------------------
 
     -- Read Register 1 Operation
@@ -138,7 +148,7 @@ begin
             for i in 0 to 31 loop
                 RF_q(i) <= conv_std_logic_vector(0, 32);
             end loop;
-        elsif rising_edge(clk_i) then
+        elsif falling_edge(clk_i) then
             if RegWrite_ctrl_i = '1' and write_register_w /= "00000" then
                 RF_q(conv_integer(write_register_w)) <= write_data_w;
             end if;
@@ -173,8 +183,7 @@ begin
     -- WB Controls
     RegDst_ctrl_o 	<= RegDst_ctrl_q;
     MemtoReg_ctrl_o <= MemtoReg_ctrl_q;
-    RegWrite_ctrl_o <= RegWrite_ctrl_q;
-    LinkPC_ctrl_o 	<= LinkPC_ctrl_q;
+    
 
     -- MEM Controls
     MemRead_ctrl_o 	<= MemRead_ctrl_q;
@@ -185,7 +194,7 @@ begin
     ALUSrcA_ctrl_o 	<= ALUSrcA_ctrl_q;
     ALUOp_ctrl_o	 <= ALUOp_ctrl_q;
 
-
+	
 
 	-- ID/EX register update
     process (clk_i, rst_i)
@@ -230,19 +239,19 @@ begin
 				funct_q <= funct;
 				
 				-- WB Controls
-				RegDst_ctrl_q 	<= RegDst_ctrl_w;
-				MemtoReg_ctrl_q <= MemtoReg_ctrl_w;
-				RegWrite_ctrl_q <= RegWrite_ctrl_w;
-				LinkPC_ctrl_q 	<= LinkPC_ctrl_w;
+				RegDst_ctrl_q 	<= RegDst_ctrl_i;
+				MemtoReg_ctrl_q <= MemtoReg_ctrl_i;
+				RegWrite_ctrl_q <= RegWrite_ctrl_i;
+				LinkPC_ctrl_q 	<= LinkPC_ctrl_i;
 
 				-- MEM Controls
-				MemRead_ctrl_q 	<= MemRead_ctrl_w;
-				MemWrite_ctrl_q	 <= MemWrite_ctrl_w;
+				MemRead_ctrl_q 	<= MemRead_ctrl_i;
+				MemWrite_ctrl_q	 <= MemWrite_ctrl_i;
 
 				-- EX Controls
-				ALUSrcB_ctrl_q 	<= ALUSrcB_ctrl_w;
-				ALUSrcA_ctrl_q 	<= ALUSrcA_ctrl_w;
-				ALUOp_ctrl_q	 <= ALUOp_ctrl_w;
+				ALUSrcB_ctrl_q 	<= ALUSrcB_ctrl_i;
+				ALUSrcA_ctrl_q 	<= ALUSrcA_ctrl_i;
+				ALUOp_ctrl_q	 <= ALUOp_ctrl_i;
         	end if;
 		end if;
     end process;

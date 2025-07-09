@@ -25,32 +25,36 @@ ENTITY dmemory IS
 
 			dtcm_addr_i 		: IN 	STD_LOGIC_VECTOR(DTCM_ADDR_WIDTH-1 DOWNTO 0);
 			dtcm_data_wr_i 		: IN 	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+			
 			MemRead_ctrl_i  	: IN 	STD_LOGIC;
 			MemWrite_ctrl_i 	: IN 	STD_LOGIC;
+			
 			dtcm_data_rd_o 		: OUT 	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
 
-
-			target_write_reg_i : IN STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
-			target_write_reg_o : OUT STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
-
+			alu_result_i 		: IN    STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+			alu_result_o 		: OUT    STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+			
 			-- to update the MEM/WB register
 			-- WB Controls
 			RegDst_ctrl_i		: IN 	STD_LOGIC;
-			MemtoReg_ctrl_i 	: IN 	STD_LOGIC;
 			RegWrite_ctrl_i 	: IN 	STD_LOGIC;
-			LinkPC_ctrl_i		: IN 	STD_LOGIC;
+			MemtoReg_ctrl_i 	: IN 	STD_LOGIC;
+
 			RegDst_ctrl_o 		: OUT 	STD_LOGIC;
 			MemtoReg_ctrl_o 	: OUT 	STD_LOGIC;
 			RegWrite_ctrl_o 	: OUT 	STD_LOGIC;
-			LinkPC_ctrl_o 		: OUT 	STD_LOGIC;
-
 
 		    --fowording 
+			rd_register_i    : IN STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 downto 0);
+			rd_register_o    : OUT STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 downto 0);
 			--from EX/MEM to EXECUTE
 			EX_MEM_RegWrite_ctrl_o 	: OUT 	STD_LOGIC;
 			--from MEM/WB to EXECUTE
-			MEM_WB_RegWrite_ctrl_o 	: OUT 	STD_LOGIC
+			MEM_WB_RegWrite_ctrl_o 	: OUT 	STD_LOGIC;
 
+			target_write_reg_i : IN STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0);
+			EX_MEM_rd_o        : OUT  STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 downto 0);
+			MEM_WB_rd_o	       : OUT  STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 downto 0)
 
 			--dtcm_data_rd_o 		: OUT 	STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1 DOWNTO 0)
 
@@ -64,6 +68,8 @@ SIGNAL wrclk_w : STD_LOGIC;
 	-- MEM/WB register
 	signal dtcm_addr_q 		: STD_LOGIC_VECTOR(DTCM_ADDR_WIDTH-1 DOWNTO 0);
 	signal dtcm_data_rd_q   : STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1  DOWNTO 0);
+	signal alu_result_q   : STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1  DOWNTO 0);
+	signal dtcm_data_rd_w   : STD_LOGIC_VECTOR(DATA_BUS_WIDTH-1  DOWNTO 0);
 
 BEGIN
 	data_memory : altsyncram
@@ -83,14 +89,16 @@ BEGIN
 		clock0 => wrclk_w,				-- clk
 		address_a => dtcm_addr_i,		-- address
 		data_a => dtcm_data_wr_i,		-- data to write
-		q_a => dtcm_data_rd_o			-- data out
+		q_a => dtcm_data_rd_w			-- data out
 	);
 
 	wrclk_w <= NOT clk_i;	-- Load memory address register with write clock
-
+    alu_result_o <= alu_result_q; -- Forward the ALU result to the output
+	dtcm_data_rd_o <= dtcm_data_rd_q; -- Forward the data read from memory to the output
 	-- forwarding
 	EX_MEM_RegWrite_ctrl_o <= RegWrite_ctrl_i;
 	MEM_WB_RegWrite_ctrl_o <= RegWrite_ctrl_o;
+	EX_MEM_rd_o <= target_write_reg_i;
 
 	-- MEM/WB register update
     process (clk_i, rst_i)
@@ -98,25 +106,26 @@ BEGIN
         if MEM_WB_flush_ctrl_i = '1' then
                 dtcm_addr_q <= (others => '0'); 
                 dtcm_data_rd_q <= (others => '0');
-
+				rd_register_o <= (others => '0'); 
 				-- WB Controls
 				RegDst_ctrl_o 		<= '0';
+
 				MemtoReg_ctrl_o 	<= '0';
 				RegWrite_ctrl_o 	<= '0';
-				LinkPC_ctrl_o 		<= '0';
 
         elsif (RISING_EDGE(clk_i)) then
             if MEM_WB_write_ctrl_i = '1' then
                 dtcm_addr_q <= dtcm_addr_i;
-                dtcm_data_rd_q <= dtcm_data_rd_o;
-
+                dtcm_data_rd_q <= dtcm_data_rd_w;
+				alu_result_q <= alu_result_i;
+				rd_register_o <= rd_register_i; 
+				
 				-- WB Controls
 				RegDst_ctrl_o 		<= RegDst_ctrl_i;
 				MemtoReg_ctrl_o 	<= MemtoReg_ctrl_i;
 				RegWrite_ctrl_o 	<= RegWrite_ctrl_i;
-				LinkPC_ctrl_o 		<= LinkPC_ctrl_i;
 
-				target_write_reg_o <= target_write_reg_i;
+				MEM_WB_rd_o <= target_write_reg_i;
             
             end if;
         end if;
